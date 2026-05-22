@@ -7,6 +7,10 @@
     {
       "source": "/uploads/:path*",
       "destination": "/api/index.py"
+    },
+    {
+      "source": "/:path*",
+      "destination": "/public/:path*"
     }
   ]
 }
