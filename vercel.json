@@ -13,8 +13,16 @@
       "destination": "/public/index.html"
     },
     {
-      "source": "/:path*",
-      "destination": "/public/:path*"
+      "source": "/index.html",
+      "destination": "/public/index.html"
+    },
+    {
+      "source": "/app.js",
+      "destination": "/public/app.js"
+    },
+    {
+      "source": "/style.css",
+      "destination": "/public/style.css"
     }
   ]
 }
