@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartCivic AI Portal - Waste Grievance Command Center</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Leaflet mapping library -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+</head>
+<body>
+
+    <!-- Header Section -->
+    <header>
+        <div class="nav-container">
+            <div class="brand-section">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                    </svg>
+                </div>
+                <div>
+                    <span class="logo-text">SmartCivic AI</span>
+                    <span class="logo-badge">Portal</span>
+                </div>
+            </div>
+            
+            <nav class="nav-tabs" id="main-nav-tabs" style="display: none;">
+                <button class="nav-tab active" id="tab-citizen" onclick="switchTab('citizen')">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                    </svg>
+                    Citizen Reporting
+                </button>
+                <button class="nav-tab" id="tab-track" onclick="switchTab('track')">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                    </svg>
+                    Track Grievances
+                </button>
+                <button class="nav-tab" id="tab-admin" onclick="switchTab('admin')">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+                    </svg>
+                    Operations Command
+                </button>
+            </nav>
+
+            <div class="user-profile-badge" id="user-profile-header" style="display: none;">
+                <div class="user-avatar" id="header-user-avatar">U</div>
+                <span class="username-display" id="header-username">Username</span>
+                <button class="btn-logout-small" onclick="handleLogout()" title="Log Out">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main>
+        
+        <!-- CITIZEN PORTAL VIEW -->
+        <section id="view-citizen" class="view-panel active">
+            <div class="glass-card">
+                <h1 class="card-title">Report a Waste Grievance</h1>
+                <p class="card-subtitle">File your complaint in plain English. Our AI will automatically identify the location, waste type, and dispatch priority.</p>
+                
+                <form id="complaint-form" onsubmit="submitComplaint(event)">
+                    <div class="form-group">
+                        <label for="complaint-text" class="form-label">Natural Language Complaint</label>
+                        <textarea 
+                            id="complaint-text" 
+                            class="form-textarea" 
+                            placeholder="Describe the issue... (e.g. 'The green bin near Central Library on Library Road is overflowing with dry papers, it has been skipped for two days.')" 
+                            required
+                        ></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Pinpoint Waste Location (Geotagging)</label>
+                        <div class="map-widget-container">
+                            <div id="map"></div>
+                            <div class="map-controls">
+                                <div class="coords-badge">
+                                    Lat: <span id="lat-display">--</span>, Lng: <span id="lng-display">--</span>
+                                </div>
+                                <button type="button" class="btn-secondary" onclick="locateUser()">
+                                    <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: currentColor;">
+                                        <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h-2v-2.06c-4.17-.46-7.48-3.77-7.94-7.94H1v-2h2.06c.46-4.17 3.77-7.48 7.94-7.94V1h2v2.06c4.17.46 7.48 3.77 7.94 7.94H23v2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/>
+                                    </svg>
+                                    Locate Me
+                                </button>
+                            </div>
+                        </div>
+                        <input type="hidden" id="complaint-lat" name="latitude">
+                        <input type="hidden" id="complaint-lng" name="longitude">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Situation Photo (Optional - Diagnosed by AI)</label>
+                        <div class="file-upload-zone" id="upload-zone" onclick="document.getElementById('complaint-image').click()">
+                            <svg class="upload-icon" viewBox="0 0 24 24" id="upload-icon">
+                                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
+                            </svg>
+                            <p class="upload-text" id="upload-prompt">Drag & drop or click to upload situation image</p>
+                            <input type="file" id="complaint-image" accept="image/*" style="display: none;" onchange="handleImageSelect(event)">
+                            <div class="upload-preview-container" id="upload-preview-container" style="display: none;" onclick="event.stopPropagation()">
+                                <img id="upload-preview" src="" alt="Upload Preview">
+                                <button type="button" class="remove-preview-btn" onclick="clearImagePreview(event)">
+                                    <svg viewBox="0 0 24 24">
+                                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" id="submit-btn" class="btn-primary">
+                        <span id="btn-text">Submit Complaint</span>
+                        <svg id="btn-spinner" class="spinner" viewBox="0 0 50 50" style="display: none;">
+                            <circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle>
+                        </svg>
+                    </button>
+                </form>
+                
+                <!-- Quick Samples -->
+                <div class="samples-container">
+                    <h3 class="samples-title">Click to load standard samples</h3>
+                    <div class="samples-grid">
+                        <button class="sample-chip" onclick="loadSample(1)">
+                            <strong>Shimoga:</strong> "The waste collector skipped ward 5 on Ring Road in Shimoga again. There's a pile of decomposing kitchen food waste on the curb and the smell is awful, stray animals are tearing it up."
+                        </button>
+                        <button class="sample-chip" onclick="loadSample(2)">
+                            <strong>MG Road:</strong> "There are lots of discarded cardboard boxes and empty plastic bottles lying around in the central market area on MG Road. It looks very messy."
+                        </button>
+                        <button class="sample-chip" onclick="loadSample(3)">
+                            <strong>Nehru Road:</strong> "A mix of kitchen garbage bags and plastic containers have been dumped near the government school entrance on Nehru Road. The pile is growing and blocking the gate."
+                        </button>
+                        <button class="sample-chip" onclick="loadSample(4)">
+                            <strong>Sagar:</strong> "Our regular collection truck hasn't visited standard street, Sagar for two days. Bins are full but not yet spilling."
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- GLOBAL AUTHENTICATION VIEW (Forced on startup if not logged in) -->
+        <section id="view-auth" class="view-panel">
+            <div class="glass-card auth-container" id="auth-panel">
+                <div class="auth-tabs">
+                    <button class="auth-tab active" id="auth-tab-login" onclick="switchAuthMode('login')">Log In</button>
+                    <button class="auth-tab" id="auth-tab-signup" onclick="switchAuthMode('signup')">Sign Up</button>
+                </div>
+                
+                <!-- Login Form -->
+                <form id="login-form" onsubmit="handleLogin(event)" class="auth-form active">
+                    <h2 class="auth-title">Citizen Sign In</h2>
+                    <p class="card-subtitle" style="margin-bottom: 1.5rem; text-align: center;">Log in to submit and track waste complaints.</p>
+                    
+                    <div class="form-group">
+                        <label for="login-username" class="form-label">Username</label>
+                        <input type="text" id="login-username" class="form-input" required placeholder="Enter username">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="login-password" class="form-label">Password</label>
+                        <input type="password" id="login-password" class="form-input" required placeholder="••••••••">
+                    </div>
+                    
+                    <button type="submit" class="btn-primary">Sign In</button>
+                </form>
+                
+                <!-- Signup Form -->
+                <form id="signup-form" onsubmit="handleSignup(event)" class="auth-form">
+                    <h2 class="auth-title">Create Account</h2>
+                    <p class="card-subtitle" style="margin-bottom: 1.5rem; text-align: center;">Register an account to submit complaints and track resolutions.</p>
+                    
+                    <div class="form-group">
+                        <label for="signup-username" class="form-label">Username</label>
+                        <input type="text" id="signup-username" class="form-input" required placeholder="Choose a username">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="signup-password" class="form-label">Password</label>
+                        <input type="password" id="signup-password" class="form-input" required placeholder="Choose a password (min 4 chars)">
+                    </div>
+                    
+                    <button type="submit" class="btn-primary">Create Account</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- CITIZEN TRACKING VIEW -->
+        <section id="view-track" class="view-panel">
+            <!-- Logged in Tracking view -->
+            <div class="tracking-dashboard" id="tracking-dashboard">
+                <div class="tracker-header glass-card">
+                    <div class="tracker-welcome">
+                        <h2>Welcome, <span id="citizen-display-name">Citizen</span>!</h2>
+                        <p>Here is the real-time status of the complaints you have submitted.</p>
+                    </div>
+                    <button class="btn-logout" onclick="handleLogout()">
+                        <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: currentColor;">
+                            <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+                        </svg>
+                        Log Out
+                    </button>
+                </div>
+                
+                <div class="tracker-list-title">
+                    <h3>Your Submitted Grievances</h3>
+                </div>
+                
+                <div id="my-tickets-container" class="tickets-grid">
+                    <!-- Loaded dynamically via JavaScript -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ADMIN DASHBOARD VIEW -->
+        <section id="view-admin" class="view-panel">
+            
+            <!-- KPI Summary Cards -->
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9h-4v4h-2v-4H9V9h4V5h2v4h4v2z"/>
+                        </svg>
+                    </div>
+                    <div class="kpi-content">
+                        <span class="kpi-value" id="kpi-total">0</span>
+                        <span class="kpi-label">Active Grievances</span>
+                    </div>
+                </div>
+                
+                <div class="kpi-card critical">
+                    <div class="kpi-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                        </svg>
+                    </div>
+                    <div class="kpi-content">
+                        <span class="kpi-value" id="kpi-critical">0</span>
+                        <span class="kpi-label">Critical Alerts</span>
+                    </div>
+                </div>
+                
+                <div class="kpi-card pending">
+                    <div class="kpi-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                        </svg>
+                    </div>
+                    <div class="kpi-content">
+                        <span class="kpi-value" id="kpi-wet">0</span>
+                        <span class="kpi-label">Wet Waste Tickets</span>
+                    </div>
+                </div>
+
+                <div class="kpi-card resolved">
+                    <div class="kpi-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                    </div>
+                    <div class="kpi-content">
+                        <span class="kpi-value" id="kpi-resolved">0</span>
+                        <span class="kpi-label">Resolved Tickets</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls (Search + Filters) -->
+            <div class="control-bar">
+                <div class="search-wrapper">
+                    <svg class="search-icon" viewBox="0 0 24 24">
+                        <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                    </svg>
+                    <input 
+                        type="text" 
+                        id="search-input" 
+                        class="search-input" 
+                        placeholder="Search by location, keyword..." 
+                        oninput="applyFilters()"
+                    >
+                </div>
+                
+                <div class="filter-group">
+                    <select id="filter-severity" class="filter-select" onchange="applyFilters()">
+                        <option value="all">All Severities</option>
+                        <option value="Critical">Critical</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Low">Low</option>
+                    </select>
+
+                    <select id="filter-type" class="filter-select" onchange="applyFilters()">
+                        <option value="all">All Waste Types</option>
+                        <option value="Wet">Wet Waste</option>
+                        <option value="Dry">Dry Waste</option>
+                        <option value="Mixed">Mixed Waste</option>
+                    </select>
+
+                    <select id="filter-status" class="filter-select" onchange="applyFilters()">
+                        <option value="all">All Statuses</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Resolved">Resolved</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Grievance list display container -->
+            <div id="tickets-container" class="tickets-grid">
+                <!-- Loaded dynamically by JavaScript -->
+                <div class="empty-state">
+                    <svg class="empty-icon" viewBox="0 0 24 24">
+                        <path d="M19 8H5c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 10h-2v-4h2v4zm0-6h-2V10h2v2z"/>
+                    </svg>
+                    <h3 class="empty-title">Loading Grievances...</h3>
+                    <p class="empty-desc">Connecting to database and fetching operations dashboard data.</p>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Toast Notifications Container -->
+    <div id="notification-container" class="notification-container"></div>
+
+    <!-- Analysis Results Modal -->
+    <div id="results-modal" class="modal-overlay" style="display: none;">
+        <div class="glass-card modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">AI Grievance Analysis</h2>
+                <button class="btn-close" onclick="closeResultsModal()">
+                    <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="result-success-badge">
+                    <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                    Complaint Logged Successfully!
+                </div>
+                
+                <div class="result-details-grid">
+                    <div class="result-item">
+                        <span class="result-label">Detected Location</span>
+                        <span class="result-value" id="res-location">--</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Severity Level</span>
+                        <span class="result-value" id="res-severity">--</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Waste Type</span>
+                        <span class="result-value" id="res-type">--</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-label">Coordinates Pinpoint</span>
+                        <span class="result-value" id="res-coords">--</span>
+                    </div>
+                </div>
+                
+                <div class="result-section">
+                    <span class="result-label">AI Urgency Reason</span>
+                    <p class="result-text" id="res-reason">--</p>
+                </div>
+                
+                <div class="result-section" id="res-image-section" style="display: none;">
+                    <span class="result-label">Hugging Face Photo Analysis</span>
+                    <div class="res-image-analysis">
+                        <div class="res-image-preview-container">
+                            <img id="res-image-preview" src="" alt="Analyzed Photo">
+                        </div>
+                        <div class="res-image-tags-container">
+                            <span class="result-label">Detected Objects / Tags</span>
+                            <div class="ai-tag-bar" id="res-image-tags">
+                                <!-- Tags here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <button class="btn-primary" onclick="closeResultsModal()" style="margin-top: 1.5rem;">Done</button>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <p>&copy; 2026 SmartCivic AI. Built with precision and powered by Gemini 2.0 Flash.</p>
+    </footer>
+
+    <!-- App JavaScript -->
+    <script src="app.js"></script>
+</body>
+</html>

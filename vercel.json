@@ -16,6 +16,14 @@
       "dest": "main.py"
     },
     {
+      "src": "/(style.css|app.js)",
+      "dest": "/public/$1"
+    },
+    {
+      "src": "/(index.html)?",
+      "dest": "/public/index.html"
+    },
+    {
       "handle": "filesystem"
     },
     {
