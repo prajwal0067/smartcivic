@@ -16,6 +16,10 @@
       "dest": "main.py"
     },
     {
+      "src": "/$",
+      "dest": "/index.html"
+    },
+    {
       "handle": "filesystem"
     },
     {
