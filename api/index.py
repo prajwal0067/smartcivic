@@ -1,4 +1,9 @@
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
 import sqlite3
 import json
 import secrets
@@ -393,7 +398,7 @@ async def create_complaint(
     # Analyze grievance text (Gemini API with heuristics fallback)
     if api_key:
         try:
-            model = genai.GenerativeModel("gemini-2.0-flash")
+            model = genai.GenerativeModel("gemini-3.5-flash")
             prompt = f"Analyze the following civic waste complaint and extract the details in structured format:\n\n{text}"
             
             response = model.generate_content(
@@ -545,12 +550,24 @@ async def get_uploaded_file(filename: str):
     raise HTTPException(status_code=404, detail="File not found")
 
 # Serve frontend files
-if os.path.exists("public"):
-    app.mount("/", StaticFiles(directory="public", html=True), name="public")
+public_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "public")
+if os.path.exists(public_dir):
+    app.mount("/", StaticFiles(directory=public_dir, html=True), name="public")
 else:
     @app.get("/")
     async def fallback_root():
-        return {"message": "SmartCivic AI Portal API is running. Setup the 'public' directory."}
+        return {
+            "message": "SmartCivic AI Portal API is running. Setup the 'public' directory.",
+            "debug": {
+                "checked_path": public_dir,
+                "current_working_dir": os.getcwd(),
+                "file_path": __file__
+            }
+        }
 
 if __name__ == "__main__":
+    import sys
+    parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if parent_dir not in sys.path:
+        sys.path.insert(0, parent_dir)
     uvicorn.run("api.index:app", host="127.0.0.1", port=8000, reload=True)
