@@ -14,7 +14,6 @@ from contextlib import contextmanager
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException, Body, Header, Form, UploadFile, File
 from fastapi.responses import FileResponse, HTMLResponse, Response
-from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import google.generativeai as genai
@@ -634,8 +633,12 @@ for candidate in candidate_public_dirs:
         public_dir = candidate
         break
 
-if public_dir:
-    app.mount("/static", StaticFiles(directory=public_dir, html=True), name="static_public")
+try:
+    from fastapi.staticfiles import StaticFiles
+    if public_dir:
+        app.mount("/static", StaticFiles(directory=public_dir, html=True), name="static_public")
+except Exception:
+    pass
 
 if __name__ == "__main__":
     import sys
