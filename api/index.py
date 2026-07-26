@@ -13,7 +13,10 @@ import requests
 from contextlib import contextmanager
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException, Body, Header, Form, UploadFile, File
-from fastapi.responses import FileResponse, HTMLResponse, Response
+try:
+    from fastapi.responses import FileResponse, HTMLResponse, Response
+except ImportError:
+    from starlette.responses import FileResponse, HTMLResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import google.generativeai as genai
