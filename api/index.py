@@ -1,5 +1,10 @@
 import os
 import base64
+import io
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -318,22 +323,33 @@ def validate_and_tag_image(image_bytes: bytes, mime_type: str = "image/jpeg") ->
             model = get_gemini_model()
             if model:
                 prompt = (
-                    "Examine this uploaded photo carefully for a civic waste reporting app. "
+                    "Examine this uploaded photo carefully for a civic waste reporting application. "
                     "Is this a photo of a genuine civic waste issue, garbage dump, littering, waste bin, drain overflow, or public sanitation issue? "
                     "If it is a selfie, a person, face, portrait, pet, indoor room, or unrelated object, set is_waste_or_civic_issue to false. "
+                    "If it shows waste, garbage, litter, bins, dirty streets, or public waste problems, set is_waste_or_civic_issue to true. "
                     "Return ONLY a raw JSON object with keys: "
                     '{"is_waste_or_civic_issue": boolean, "detected_objects": "string with tags and percentages", "rejection_reason": "string explanation if false, otherwise null"}'
                 )
-                image_part = {"mime_type": mime_type, "data": image_bytes}
+                
+                image_input = None
+                if Image:
+                    try:
+                        image_input = Image.open(io.BytesIO(image_bytes))
+                    except Exception as pie:
+                        print(f"PIL Image open error: {pie}")
+                        image_input = None
+                if not image_input:
+                    image_input = {"mime_type": mime_type, "data": image_bytes}
+
                 response = model.generate_content(
-                    [prompt, image_part],
+                    [prompt, image_input],
                     generation_config={"response_mime_type": "application/json", "temperature": 0.1}
                 )
                 if response and response.text:
                     res = json.loads(response.text)
                     is_valid = res.get("is_waste_or_civic_issue", True)
-                    tags = res.get("detected_objects", "Photo Uploaded")
-                    reason = res.get("rejection_reason", "Uploaded photo appears to be a selfie/person instead of a waste site.")
+                    tags = res.get("detected_objects", "Waste Photo Analyzed")
+                    reason = res.get("rejection_reason", "Uploaded photo appears to be a selfie or person instead of a waste site.")
                     return is_valid, tags, reason
         except Exception as e:
             print(f"Gemini Vision validation exception: {e}")
@@ -352,9 +368,6 @@ def validate_and_tag_image(image_bytes: bytes, mime_type: str = "image/jpeg") ->
     
     if is_person_photo and not has_waste_label:
         return False, tags, "Uploaded image appears to be a person/portrait rather than a civic waste issue."
-
-    if "visual record saved" in tags_lower or "waste photo uploaded" in tags_lower:
-        return False, tags, "Photo could not be verified as a valid civic waste site by AI Vision models. Please upload a clear photo of the waste issue."
         
     return True, tags, ""
 
@@ -370,11 +383,16 @@ def analyze_image_gemini(image_bytes: bytes, mime_type: str = "image/jpeg") -> O
             "or situation elements with estimated percentage scores (e.g. 'Garbage Dump (94%), Plastic Litter (85%), Waste Bin (76%)'). "
             "Return ONLY the concise comma-separated tags string."
         )
-        image_part = {
-            "mime_type": mime_type,
-            "data": image_bytes
-        }
-        response = model.generate_content([prompt, image_part])
+        image_input = None
+        if Image:
+            try:
+                image_input = Image.open(io.BytesIO(image_bytes))
+            except Exception:
+                image_input = None
+        if not image_input:
+            image_input = {"mime_type": mime_type, "data": image_bytes}
+
+        response = model.generate_content([prompt, image_input])
         if response and response.text:
             cleaned = response.text.strip().replace("\n", " ")
             if len(cleaned) > 4 and len(cleaned) < 200:
