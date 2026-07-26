@@ -60,14 +60,11 @@ if not api_key:
 
 if not api_key:
     try:
-        # Encoded fallback for serverless zero-config execution
+        # Encoded fallback for serverless execution
         b64_k = "QVEuQWI4Uk42S3RyM0wtX05mYmF3N0NtNWRRUGhLWXJuX3RTZ0t6aGlDQjV6TUVsd0lXRUE="
         api_key = base64.b64decode(b64_k).decode("utf-8")
     except Exception as e:
         print(f"Error decoding fallback API key: {e}")
-
-if not api_key:
-    api_key = EMBEDDED_KEY
 
 if api_key:
     try:
@@ -76,7 +73,7 @@ if api_key:
     except Exception as e:
         print(f"Failed to configure Gemini API: {e}")
 else:
-    print("Warning: No Gemini API key found. Server will run in Fallback Mode.")
+    print("Warning: No Gemini API key found.")
 
 def get_gemini_model():
     if not api_key:
