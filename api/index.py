@@ -581,6 +581,7 @@ async def create_complaint(
         if cursor.fetchone():
             raise HTTPException(status_code=400, detail="Duplicate complaint detected! You have already registered this issue recently.")
 
+    extraction_method = "Gemini AI Engine"
     image_path = None
     image_tags = None
     visual_sev = "Low"
