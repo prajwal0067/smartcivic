@@ -247,6 +247,8 @@ def analyze_photo_with_ai(image_bytes: bytes, mime_type: str = "image/jpeg") -> 
                     urgency_exp = res.get("visual_urgency_reason", "Urgency evaluated by Gemini Vision AI.")
                     return is_real, tags, severity, urgency_exp, reason
         except Exception as e:
+            print(f"Gemini Vision API Exception: {e}")
+
     # If Gemini API key is missing, revoked, or fails
     return False, "Gemini Vision API Required", "Low", "", "Gemini API key is missing or revoked. Please provide a working Gemini API key to enable AI vision photo verification."
 
