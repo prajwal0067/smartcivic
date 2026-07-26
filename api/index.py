@@ -591,6 +591,8 @@ candidate_public_dirs = [
     os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "public"),
     os.path.join(os.getcwd(), "public"),
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "public"),
+    os.path.abspath("public"),
+    "/var/task/public"
 ]
 
 public_dir = None
