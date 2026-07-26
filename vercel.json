@@ -1,7 +1,7 @@
 {
   "functions": {
     "api/index.py": {
-      "includeFiles": "public/**"
+      "includeFiles": "api/public/**"
     }
   },
   "rewrites": [
@@ -12,10 +12,6 @@
     {
       "source": "/uploads/(.*)",
       "destination": "/api/index.py"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/public/$1"
     }
   ]
 }
