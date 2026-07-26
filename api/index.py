@@ -318,19 +318,16 @@ def validate_and_tag_image(image_bytes: bytes, mime_type: str = "image/jpeg") ->
             model = get_gemini_model()
             if model:
                 prompt = (
-                    "Examine this uploaded photo carefully. Is this a photo of a genuine civic waste issue, garbage dump, "
-                    "littering, waste container, overflow, or public sanitation problem? "
-                    "If it is a selfie, a person, face, portrait, pet, indoor room, or unrelated object, set is_waste_or_civic_issue to False. "
-                    "Return JSON matching the schema."
+                    "Examine this uploaded photo carefully for a civic waste reporting app. "
+                    "Is this a photo of a genuine civic waste issue, garbage dump, littering, waste bin, drain overflow, or public sanitation issue? "
+                    "If it is a selfie, a person, face, portrait, pet, indoor room, or unrelated object, set is_waste_or_civic_issue to false. "
+                    "Return ONLY a raw JSON object with keys: "
+                    '{"is_waste_or_civic_issue": boolean, "detected_objects": "string with tags and percentages", "rejection_reason": "string explanation if false, otherwise null"}'
                 )
                 image_part = {"mime_type": mime_type, "data": image_bytes}
                 response = model.generate_content(
                     [prompt, image_part],
-                    generation_config=genai.GenerationConfig(
-                        response_mime_type="application/json",
-                        response_schema=ImageValidation,
-                        temperature=0.1
-                    )
+                    generation_config={"response_mime_type": "application/json", "temperature": 0.1}
                 )
                 if response and response.text:
                     res = json.loads(response.text)
@@ -599,15 +596,24 @@ async def create_complaint(
     if api_key:
         try:
             model = get_gemini_model()
-            prompt = f"Analyze the following civic waste complaint and extract the details in structured format:\n\n{text}"
-            
+            prompt = f"""You are an expert AI civic analysis engine for SmartCivic Portal. Analyze this complaint description and output ONLY a valid JSON object.
+
+Complaint Description:
+"{cleaned_text}"
+
+Required Output Format (JSON):
+{{
+  "is_valid_civic_issue": true or false,
+  "rejection_reason": "string explanation if is_valid_civic_issue is false, otherwise null",
+  "location": "extracted street/landmark/neighborhood/city or Unknown",
+  "waste_type": "Wet" or "Dry" or "Mixed",
+  "severity_level": "Low" or "Medium" or "Critical",
+  "urgency_reason": "brief explanation of severity and risk"
+}}"""
+
             response = model.generate_content(
                 prompt,
-                generation_config=genai.GenerationConfig(
-                    response_mime_type="application/json",
-                    response_schema=ComplaintAnalysis,
-                    temperature=0.1
-                )
+                generation_config={"response_mime_type": "application/json", "temperature": 0.1}
             )
             
             result = json.loads(response.text)
