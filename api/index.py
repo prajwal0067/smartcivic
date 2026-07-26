@@ -37,7 +37,7 @@ UPLOAD_DIR = "/tmp/uploads" if IS_VERCEL else "public/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # 1. Initialize API Keys
-EMBEDDED_KEY = "AIzaSyDex-h1iHO5tgZMSHyfV2OP3h5jF2zqj4Q"
+api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GEMINI_KEY")
 key_candidates = [
     "AIzaSyDex-h1iHO5tgZMSHyfV2OP3h5jF2z.txt",
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "AIzaSyDex-h1iHO5tgZMSHyfV2OP3h5jF2z.txt"),
@@ -47,8 +47,6 @@ key_candidates = [
     "/var/task/api/AIzaSyDex-h1iHO5tgZMSHyfV2OP3h5jF2z.txt",
     "/var/task/AIzaSyDex-h1iHO5tgZMSHyfV2OP3h5jF2z.txt",
 ]
-
-api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GEMINI_KEY")
 if not api_key:
     for candidate in key_candidates:
         if os.path.exists(candidate):
