@@ -164,12 +164,53 @@ class UserLoginRequest(BaseModel):
     password: str = Field(...)
 
 class ComplaintAnalysis(BaseModel):
+    is_valid_civic_issue: bool = Field(
+        description="MUST be True if the text is a real, meaningful civic or waste grievance. MUST be False if the text is gibberish, spam, test text, keyboard smashing, or completely out of scope."
+    )
+    rejection_reason: Optional[str] = Field(
+        default=None,
+        description="If is_valid_civic_issue is False, explain briefly why it is classified as invalid or fake."
+    )
     location: str = Field(description="The specific location, street, landmark, neighborhood, or city mentioned in the complaint. If none is found, return 'Unknown'")
     waste_type: str = Field(description="The type of waste. MUST be one of: Wet, Dry, Mixed.")
     severity_level: str = Field(description="The severity level of the waste issue. MUST be one of: Low, Medium, Critical.")
     urgency_reason: str = Field(description="A brief explanation of why this severity level was assigned and what the core issue is.")
 
-# 6. Heuristic Fallback Analysis
+# 6. Anti-Fraud & Anti-Spam Validation Rules
+def is_gibberish_or_spam(text: str) -> tuple[bool, str]:
+    cleaned = text.strip()
+    if len(cleaned) < 8:
+        return True, "Complaint description is too short (minimum 8 characters required)."
+        
+    text_lower = cleaned.lower()
+    
+    # Common keyboard smash / test spam patterns
+    spam_patterns = [
+        "asdf", "qwerty", "zxcv", "12345", "test test", "blah blah", 
+        "aaaaa", "bbbbb", "ccccc", "ddddd", "eeeee", "ffffff", "11111", "22222"
+    ]
+    for pattern in spam_patterns:
+        if pattern in text_lower:
+            return True, f"Submission contains repetitive spam pattern ('{pattern}')."
+            
+    # Unnatural character repetition
+    char_counts = {}
+    for char in text_lower:
+        if char.isalpha():
+            char_counts[char] = char_counts.get(char, 0) + 1
+    total_alpha = sum(char_counts.values())
+    if total_alpha > 5:
+        max_char_ratio = max(char_counts.values()) / total_alpha
+        if max_char_ratio > 0.45:
+            return True, "Unnatural character repetition detected."
+
+    # Single excessively long non-word
+    words = cleaned.split()
+    if len(words) == 1 and len(words[0]) > 18:
+        return True, "Single excessively long unrecognized string submitted without spaces."
+
+    return False, ""
+
 def run_fallback_analysis(text: str) -> dict:
     text_lower = text.lower()
     location = "Unknown"
@@ -397,7 +438,23 @@ async def create_complaint(
 ):
     # Verify Authentication
     current_user = await get_current_user(authorization)
-    
+    cleaned_text = text.strip()
+
+    # 1. Anti-Duplicate Protection: Check if user submitted identical text recently
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id FROM complaints 
+            WHERE user_id = ? AND raw_text = ? AND status = 'Pending'
+        ''', (current_user["id"], cleaned_text))
+        if cursor.fetchone():
+            raise HTTPException(status_code=400, detail="Duplicate complaint detected! You have already registered this issue recently.")
+
+    # 2. Heuristic Anti-Spam & Character Entropy Check
+    is_spam, spam_reason = is_gibberish_or_spam(cleaned_text)
+    if is_spam:
+        raise HTTPException(status_code=400, detail=f"Fake/Invalid Complaint Blocked: {spam_reason}")
+
     analysis = None
     extraction_method = "AI"
     image_path = None
@@ -450,6 +507,12 @@ async def create_complaint(
             )
             
             result = json.loads(response.text)
+            
+            # Check if Gemini flagged this complaint as fake or non-civic
+            if not result.get("is_valid_civic_issue", True):
+                rejection = result.get("rejection_reason", "The input text does not represent a valid civic or waste management issue.")
+                raise HTTPException(status_code=400, detail=f"AI Anti-Fraud Guard: {rejection}")
+
             location = result.get("location", "Unknown")
             
             waste_type = result.get("waste_type", "Mixed")
