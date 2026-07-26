@@ -183,17 +183,19 @@ def is_gibberish_or_spam(text: str) -> tuple[bool, str]:
         return True, "Complaint description is too short (minimum 8 characters required)."
         
     text_lower = cleaned.lower()
+    words = cleaned.split()
     
-    # Common keyboard smash / test spam patterns
+    # 1. Common keyboard smash / test spam patterns
     spam_patterns = [
         "asdf", "qwerty", "zxcv", "12345", "test test", "blah blah", 
-        "aaaaa", "bbbbb", "ccccc", "ddddd", "eeeee", "ffffff", "11111", "22222"
+        "aaaaa", "bbbbb", "ccccc", "ddddd", "eeeee", "ffffff", "11111", "22222",
+        "hfd", "jkl;", "fdsa", "lkjh"
     ]
     for pattern in spam_patterns:
         if pattern in text_lower:
-            return True, f"Submission contains repetitive spam pattern ('{pattern}')."
+            return True, f"Submission contains repetitive spam or keyboard smash pattern ('{pattern}')."
             
-    # Unnatural character repetition
+    # 2. Unnatural character repetition
     char_counts = {}
     for char in text_lower:
         if char.isalpha():
@@ -201,13 +203,30 @@ def is_gibberish_or_spam(text: str) -> tuple[bool, str]:
     total_alpha = sum(char_counts.values())
     if total_alpha > 5:
         max_char_ratio = max(char_counts.values()) / total_alpha
-        if max_char_ratio > 0.45:
+        if max_char_ratio > 0.40:
             return True, "Unnatural character repetition detected."
 
-    # Single excessively long non-word
-    words = cleaned.split()
-    if len(words) == 1 and len(words[0]) > 18:
-        return True, "Single excessively long unrecognized string submitted without spaces."
+    # 3. Check for random gibberish words without vowels
+    vowels = set("aeiouy")
+    meaningless_words = 0
+    for w in words:
+        w_clean = "".join(c for c in w.lower() if c.isalpha())
+        if len(w_clean) >= 5 and not any(v in w_clean for v in vowels):
+            meaningless_words += 1
+    if meaningless_words > 0:
+        return True, "Text contains unreadable gibberish words without vowels."
+
+    # 4. Mandatory Civic / Waste / Location Keywords Check
+    civic_keywords = [
+        "waste", "garbage", "trash", "bin", "dump", "smell", "stink", "road", "street", "curb", "cleaning", 
+        "collector", "truck", "overflow", "plastic", "paper", "food", "drain", "water", "litter", "dirty",
+        "near", "at", "in", "block", "nagar", "colony", "area", "house", "shop", "market", "school", "hospital",
+        "day", "days", "week", "skipped", "pile", "hazard", "leak", "dustbin", "sweep", "sweeper", "civic",
+        "clear", "collect", "remove", "junction", "lane", "circle", "park", "corner", "side", "curbside"
+    ]
+    has_civic_term = any(kw in text_lower for kw in civic_keywords)
+    if not has_civic_term and len(words) < 4:
+        return True, "Description is too vague or lacks recognizable civic waste reporting details."
 
     return False, ""
 
@@ -259,7 +278,67 @@ def run_fallback_analysis(text: str) -> dict:
         "urgency_reason": urgency_reason
     }
 
-# 7. Image Classification (Hugging Face API + Gemini Vision Fallback)
+# 7. Image Classification & Anti-Fake Photo Validation
+class ImageValidation(BaseModel):
+    is_waste_or_civic_issue: bool = Field(
+        description="True if the photo shows a waste site, garbage dump, litter, waste bin, drain issue, or civic sanitation problem. False if the photo is a selfie, portrait of a person, indoor pet, vehicle, anime, graphic, or unrelated object."
+    )
+    detected_objects: str = Field(
+        description="Comma separated list of 2 to 3 main visible objects or tags with percentage scores, e.g. 'Garbage Pile (90%), Plastic Bottle (80%)' or 'Person / Selfie (95%), Face (90%)'."
+    )
+    rejection_reason: Optional[str] = Field(
+        default=None,
+        description="If is_waste_or_civic_issue is False, state why the image is invalid (e.g. 'Photo appears to be a selfie/person instead of a waste issue')."
+    )
+
+def validate_and_tag_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> tuple[bool, str, str]:
+    """
+    Returns: (is_valid, tags, rejection_reason)
+    """
+    if api_key:
+        try:
+            model = get_gemini_model()
+            if model:
+                prompt = (
+                    "Examine this photo. Determine if it shows a genuine civic waste issue, garbage dump, littering, "
+                    "waste container, overflow, or public sanitation issue. "
+                    "Return structured JSON matching the schema."
+                )
+                image_part = {"mime_type": mime_type, "data": image_bytes}
+                response = model.generate_content(
+                    [prompt, image_part],
+                    generation_config=genai.GenerationConfig(
+                        response_mime_type="application/json",
+                        response_schema=ImageValidation,
+                        temperature=0.1
+                    )
+                )
+                if response and response.text:
+                    res = json.loads(response.text)
+                    is_valid = res.get("is_waste_or_civic_issue", True)
+                    tags = res.get("detected_objects", "Photo Uploaded")
+                    reason = res.get("rejection_reason", "Uploaded photo is a person, selfie, or unrelated image.")
+                    return is_valid, tags, reason
+        except Exception as e:
+            print(f"Gemini Vision validation exception: {e}")
+
+    tags = analyze_image_hf(image_bytes, mime_type)
+    tags_lower = tags.lower()
+    
+    person_labels = [
+        "person", "human", "man", "woman", "boy", "girl", "selfie", "face", "portrait", "groom", "bride", 
+        "suit", "dress", "jersey", "t-shirt", "headshot", "people", "child"
+    ]
+    waste_labels = ["garbage", "trash", "waste", "litter", "rubbish", "dump", "bin", "container", "debris", "plastic", "bottle", "paper", "cardboard"]
+    
+    is_person_photo = any(p in tags_lower for p in person_labels)
+    has_waste_label = any(w in tags_lower for w in waste_labels)
+    
+    if is_person_photo and not has_waste_label:
+        return False, tags, "Uploaded image appears to be a person/portrait rather than a civic waste issue."
+        
+    return True, tags, ""
+
 def analyze_image_gemini(image_bytes: bytes, mime_type: str = "image/jpeg") -> Optional[str]:
     if not api_key:
         return None
@@ -482,8 +561,11 @@ async def create_complaint(
             base64_str = base64.b64encode(contents).decode("utf-8")
             image_path = f"data:{mime_type};base64,{base64_str}"
                 
-            # Classify with Hugging Face Inference API + Gemini Vision Fallback
-            image_tags = analyze_image_hf(contents, mime_type)
+            # Validate Photo: Check if it's a person/selfie or genuine waste photo
+            is_valid_img, tags_out, img_rejection = validate_and_tag_image(contents, mime_type)
+            if not is_valid_img:
+                raise HTTPException(status_code=400, detail=f"Invalid Photo Uploaded: {img_rejection}")
+            image_tags = tags_out
             
         except HTTPException as he:
             raise he
