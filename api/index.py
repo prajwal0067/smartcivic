@@ -249,8 +249,10 @@ def analyze_photo_with_ai(image_bytes: bytes, mime_type: str = "image/jpeg") -> 
                     if severity not in ["Low", "Medium", "Critical"]:
                         severity = "Medium"
                     reason = res.get("rejection_reason", "AI Vision identified photo as non-waste or selfie.")
-                    urgency_exp = res.get("visual_urgency_reason", "Urgency evaluated by Gemini Vision AI.")
                     return is_real, tags, severity, urgency_exp, reason
+        except Exception as e:
+            print(f"Gemini Vision API Exception: {e}")
+
     # Fallback to Hugging Face Vision API if Gemini Vision is unavailable or key is invalid
     try:
         tags = analyze_image_hf(image_bytes, mime_type)
