@@ -13,7 +13,7 @@ import requests
 from contextlib import contextmanager
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException, Body, Header, Form, UploadFile, File
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -587,11 +587,44 @@ async def get_uploaded_file(filename: str):
     raise HTTPException(status_code=404, detail="File not found")
 
 # Serve frontend files
+try:
+    from api.static_content import read_static_file
+except ImportError:
+    try:
+        from static_content import read_static_file
+    except ImportError:
+        def read_static_file(filename: str):
+            return None
+
+@app.get("/", response_class=HTMLResponse)
+@app.get("/index.html", response_class=HTMLResponse)
+async def serve_root_index():
+    content = read_static_file("index.html")
+    if content:
+        return HTMLResponse(content=content)
+    raise HTTPException(status_code=404, detail="index.html not found")
+
+@app.get("/style.css")
+async def serve_root_css():
+    content = read_static_file("style.css")
+    if content:
+        return Response(content=content, media_type="text/css")
+    raise HTTPException(status_code=404, detail="style.css not found")
+
+@app.get("/app.js")
+async def serve_root_js():
+    content = read_static_file("app.js")
+    if content:
+        return Response(content=content, media_type="application/javascript")
+    raise HTTPException(status_code=404, detail="app.js not found")
+
+# Additional static mounting fallback
 candidate_public_dirs = [
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "public"),
     os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "public"),
     os.path.join(os.getcwd(), "public"),
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "public"),
     os.path.abspath("public"),
+    "/var/task/api/public",
     "/var/task/public"
 ]
 
@@ -602,18 +635,7 @@ for candidate in candidate_public_dirs:
         break
 
 if public_dir:
-    app.mount("/", StaticFiles(directory=public_dir, html=True), name="public")
-else:
-    @app.get("/")
-    async def fallback_root():
-        return {
-            "message": "SmartCivic AI Portal API is running. Setup the 'public' directory.",
-            "debug": {
-                "checked_paths": candidate_public_dirs,
-                "current_working_dir": os.getcwd(),
-                "file_path": __file__
-            }
-        }
+    app.mount("/static", StaticFiles(directory=public_dir, html=True), name="static_public")
 
 if __name__ == "__main__":
     import sys
