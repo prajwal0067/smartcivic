@@ -587,8 +587,19 @@ async def get_uploaded_file(filename: str):
     raise HTTPException(status_code=404, detail="File not found")
 
 # Serve frontend files
-public_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "public")
-if os.path.exists(public_dir):
+candidate_public_dirs = [
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "public"),
+    os.path.join(os.getcwd(), "public"),
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "public"),
+]
+
+public_dir = None
+for candidate in candidate_public_dirs:
+    if os.path.exists(candidate):
+        public_dir = candidate
+        break
+
+if public_dir:
     app.mount("/", StaticFiles(directory=public_dir, html=True), name="public")
 else:
     @app.get("/")
@@ -596,7 +607,7 @@ else:
         return {
             "message": "SmartCivic AI Portal API is running. Setup the 'public' directory.",
             "debug": {
-                "checked_path": public_dir,
+                "checked_paths": candidate_public_dirs,
                 "current_working_dir": os.getcwd(),
                 "file_path": __file__
             }
