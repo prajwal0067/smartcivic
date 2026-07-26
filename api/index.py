@@ -32,13 +32,31 @@ UPLOAD_DIR = "/tmp/uploads" if IS_VERCEL else "public/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # 1. Initialize API Keys
+EMBEDDED_KEY = "AIzaSyDex-h1iHO5tgZMSHyfV2OP3h5jF2zqj4Q"
+key_candidates = [
+    "AIzaSyDex-h1iHO5tgZMSHyfV2OP3h5jF2z.txt",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "AIzaSyDex-h1iHO5tgZMSHyfV2OP3h5jF2z.txt"),
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "AIzaSyDex-h1iHO5tgZMSHyfV2OP3h5jF2z.txt"),
+    os.path.join(os.getcwd(), "AIzaSyDex-h1iHO5tgZMSHyfV2OP3h5jF2z.txt"),
+    os.path.join(os.getcwd(), "api", "AIzaSyDex-h1iHO5tgZMSHyfV2OP3h5jF2z.txt"),
+    "/var/task/api/AIzaSyDex-h1iHO5tgZMSHyfV2OP3h5jF2z.txt",
+    "/var/task/AIzaSyDex-h1iHO5tgZMSHyfV2OP3h5jF2z.txt",
+]
+
 api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GEMINI_KEY")
-if not api_key and os.path.exists(KEY_FILE):
-    try:
-        with open(KEY_FILE, "r") as f:
-            api_key = f.read().strip()
-    except Exception as e:
-        print(f"Error reading API key file: {e}")
+if not api_key:
+    for candidate in key_candidates:
+        if os.path.exists(candidate):
+            try:
+                with open(candidate, "r") as f:
+                    api_key = f.read().strip()
+                if api_key:
+                    break
+            except Exception as e:
+                print(f"Error reading API key from {candidate}: {e}")
+
+if not api_key:
+    api_key = EMBEDDED_KEY
 
 if api_key:
     try:
@@ -300,9 +318,10 @@ def validate_and_tag_image(image_bytes: bytes, mime_type: str = "image/jpeg") ->
             model = get_gemini_model()
             if model:
                 prompt = (
-                    "Examine this photo. Determine if it shows a genuine civic waste issue, garbage dump, littering, "
-                    "waste container, overflow, or public sanitation issue. "
-                    "Return structured JSON matching the schema."
+                    "Examine this uploaded photo carefully. Is this a photo of a genuine civic waste issue, garbage dump, "
+                    "littering, waste container, overflow, or public sanitation problem? "
+                    "If it is a selfie, a person, face, portrait, pet, indoor room, or unrelated object, set is_waste_or_civic_issue to False. "
+                    "Return JSON matching the schema."
                 )
                 image_part = {"mime_type": mime_type, "data": image_bytes}
                 response = model.generate_content(
@@ -317,7 +336,7 @@ def validate_and_tag_image(image_bytes: bytes, mime_type: str = "image/jpeg") ->
                     res = json.loads(response.text)
                     is_valid = res.get("is_waste_or_civic_issue", True)
                     tags = res.get("detected_objects", "Photo Uploaded")
-                    reason = res.get("rejection_reason", "Uploaded photo is a person, selfie, or unrelated image.")
+                    reason = res.get("rejection_reason", "Uploaded photo appears to be a selfie/person instead of a waste site.")
                     return is_valid, tags, reason
         except Exception as e:
             print(f"Gemini Vision validation exception: {e}")
@@ -336,6 +355,9 @@ def validate_and_tag_image(image_bytes: bytes, mime_type: str = "image/jpeg") ->
     
     if is_person_photo and not has_waste_label:
         return False, tags, "Uploaded image appears to be a person/portrait rather than a civic waste issue."
+
+    if "visual record saved" in tags_lower or "waste photo uploaded" in tags_lower:
+        return False, tags, "Photo could not be verified as a valid civic waste site by AI Vision models. Please upload a clear photo of the waste issue."
         
     return True, tags, ""
 
